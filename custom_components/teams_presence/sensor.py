@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -12,6 +14,8 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import TeamsPresenceCoordinator
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -27,6 +31,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
             entities.append(TeamsPresenceSensor(coordinator, user_id))
             known.add(user_id)
         if entities:
+            _LOGGER.debug("Adding %d Microsoft Teams Presence sensor(s)", len(entities))
             async_add_entities(entities)
 
     add_current()

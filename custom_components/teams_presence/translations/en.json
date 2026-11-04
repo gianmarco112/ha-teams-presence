@@ -12,7 +12,7 @@
       }
     },
     "error": {
-      "cannot_connect": "Could not authenticate or query Microsoft Graph."
+      "cannot_connect": "Could not authenticate or query Microsoft Graph. Check Home Assistant logs for details."
     },
     "abort": {
       "already_configured": "This application is already configured."

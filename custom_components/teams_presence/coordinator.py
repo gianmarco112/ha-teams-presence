@@ -40,6 +40,29 @@ class GraphClient:
             self._session = async_get_clientsession(self.hass)
         return self._session
 
+    @staticmethod
+    def _identity_error(payload: Any) -> str:
+        """Return a useful but credential-safe Microsoft identity error."""
+        if isinstance(payload, dict):
+            description = payload.get("error_description")
+            code = payload.get("error")
+            if description:
+                return f"{code or 'identity_error'}: {description}"
+            if code:
+                return str(code)
+        return "Microsoft identity returned an unexpected response"
+
+    @staticmethod
+    def _graph_error(payload: Any) -> str:
+        """Extract the Graph error code and message without dumping response data."""
+        if isinstance(payload, dict):
+            error = payload.get("error")
+            if isinstance(error, dict):
+                code = error.get("code") or "GraphError"
+                message = error.get("message") or "No error message returned"
+                return f"{code}: {message}"
+        return "Microsoft Graph returned an unexpected error response"
+
     async def async_get_token(self) -> str:
         session = await self._session_get()
         url = TOKEN_URL.format(tenant=self.tenant)
@@ -52,14 +75,24 @@ class GraphClient:
         async with session.post(url, data=data, timeout=20) as response:
             payload = await response.json(content_type=None)
             if response.status != 200:
-                raise UpdateFailed(f"Microsoft identity token request failed: HTTP {response.status}")
-            self._token = payload["access_token"]
-            return self._token
+                raise UpdateFailed(
+                    "Microsoft identity token request failed "
+                    f"(HTTP {response.status}): {self._identity_error(payload)}"
+                )
+
+            token = payload.get("access_token") if isinstance(payload, dict) else None
+            if not token:
+                raise UpdateFailed(
+                    "Microsoft identity token response did not contain an access token"
+                )
+
+            self._token = token
+            return token
 
     async def _request(self, method: str, url: str, **kwargs) -> dict[str, Any]:
         session = await self._session_get()
         token = self._token or await self.async_get_token()
-        headers = kwargs.pop("headers", {})
+        headers = dict(kwargs.pop("headers", {}))
         headers["Authorization"] = f"Bearer {token}"
         headers.setdefault("Accept", "application/json")
 
@@ -67,6 +100,7 @@ class GraphClient:
             method, url, headers=headers, timeout=20, **kwargs
         ) as response:
             if response.status == 401:
+                # The cached token may have expired; request a fresh one once.
                 token = await self.async_get_token()
                 headers["Authorization"] = f"Bearer {token}"
                 async with session.request(
@@ -75,23 +109,28 @@ class GraphClient:
                     payload = await retry.json(content_type=None)
                     if retry.status >= 400:
                         raise UpdateFailed(
-                            f"Microsoft Graph request failed: HTTP {retry.status}"
+                            f"Microsoft Graph request failed (HTTP {retry.status}): "
+                            f"{self._graph_error(payload)}"
                         )
                     return payload
 
             payload = await response.json(content_type=None)
             if response.status >= 400:
                 raise UpdateFailed(
-                    f"Microsoft Graph request failed: HTTP {response.status}"
+                    f"Microsoft Graph request failed (HTTP {response.status}): "
+                    f"{self._graph_error(payload)}"
                 )
             return payload
 
     async def async_get_users(self) -> list[dict[str, Any]]:
-        """Return all users from the Microsoft 365 tenant."""
+        """Return the users exposed by the tenant's Microsoft Graph /users endpoint."""
         users: list[dict[str, Any]] = []
+        # Keep the same user discovery fields as the previously working installation.
+        # In particular, do not discard users based on optional userType/accountEnabled
+        # fields: those filters caused valid users to disappear from the sensor list.
         url = (
             f"{GRAPH_BASE}/users?"
-            "$select=id,displayName,givenName,surname,mail,userPrincipalName,userType,accountEnabled"
+            "$select=id,displayName,givenName,surname,mail,userPrincipalName"
             "&$top=999"
         )
         while url:
@@ -147,37 +186,64 @@ class TeamsPresenceCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self) -> dict[str, dict[str, Any]]:
         try:
             users = await self.client.async_get_users()
+        except Exception as err:
+            _LOGGER.exception("Unable to retrieve users from Microsoft Graph")
+            raise UpdateFailed(
+                f"Unable to retrieve Microsoft 365 users from Microsoft Graph: {err}"
+            ) from err
 
-            # Only enabled internal Member accounts are monitored.
-            # Guest/B2B and disabled accounts are excluded automatically.
-            self.users = {
-                user["id"]: user
-                for user in users
-                if (
-                    user.get("id")
-                    and user["id"] not in self.excluded
-                    and user.get("userType", "Member") == "Member"
-                    and user.get("accountEnabled", True) is True
-                )
-            }
+        # Preserve the behaviour of the working installation: include every account
+        # returned by /users except those explicitly excluded by the user in options.
+        self.users = {
+            user["id"]: user
+            for user in users
+            if user.get("id") and user["id"] not in self.excluded
+        }
+        _LOGGER.debug(
+            "Microsoft Graph user discovery: received %d user(s), monitoring %d, "
+            "manually excluded %d",
+            len(users),
+            len(self.users),
+            len(users) - len(self.users),
+        )
+        if not self.users:
+            _LOGGER.warning(
+                "Microsoft Graph returned no users to monitor after manual exclusions"
+            )
 
+        # A presence-permission or transient Graph error must not prevent sensor
+        # entities from being created. Users are returned with state 'unknown' and
+        # the presence query is retried during the next coordinator refresh.
+        try:
             presences = await self.client.async_get_presences(list(self.users))
+        except Exception as err:
+            _LOGGER.exception(
+                "Unable to retrieve Teams presence from Microsoft Graph; "
+                "user sensors will be created with unknown state until the query succeeds"
+            )
+            if not self.presences:
+                self.presences = {}
+        else:
             self.presences = {
                 presence["id"]: presence
                 for presence in presences
                 if presence.get("id")
             }
 
-            return {
-                user_id: {
-                    **self.users[user_id],
-                    **self.presences.get(user_id, {}),
-                    "state": STATUS_MAP.get(
-                        self.presences.get(user_id, {}).get("availability"),
-                        "unknown",
-                    ),
-                }
-                for user_id in self.users
+        _LOGGER.debug(
+            "Microsoft Graph returned presence for %d of %d monitored user(s)",
+            len(self.presences),
+            len(self.users),
+        )
+
+        return {
+            user_id: {
+                **self.users[user_id],
+                **self.presences.get(user_id, {}),
+                "state": STATUS_MAP.get(
+                    self.presences.get(user_id, {}).get("availability"),
+                    "unknown",
+                ),
             }
-        except Exception as err:
-            raise UpdateFailed(str(err)) from err
+            for user_id in self.users
+        }

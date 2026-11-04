@@ -11,7 +11,7 @@ Monitor Microsoft 365 availability through Microsoft Graph and expose each selec
 [![HACS](https://img.shields.io/badge/HACS-Custom%20Integration-41BDF5?logo=homeassistantcommunitystore&logoColor=white)](https://www.hacs.xyz/)
 [![Validate](https://github.com/gianmarco112/ha-teams-presence/actions/workflows/validate.yaml/badge.svg)](https://github.com/gianmarco112/ha-teams-presence/actions/workflows/validate.yaml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.2.1-blue.svg)](https://github.com/gianmarco112/ha-teams-presence/releases)
+[![Version](https://img.shields.io/badge/version-0.2.2-blue.svg)](https://github.com/gianmarco112/ha-teams-presence/releases)
 
 [Install with HACS](https://my.home-assistant.io/redirect/hacs_repository/?owner=gianmarco112&repository=ha-teams-presence&category=integration) · [Report a bug](https://github.com/gianmarco112/ha-teams-presence/issues) · [Request a feature](https://github.com/gianmarco112/ha-teams-presence/issues/new/choose)
 
@@ -21,7 +21,7 @@ Monitor Microsoft 365 availability through Microsoft Graph and expose each selec
 
 ## Overview
 
-**Microsoft Teams Presence** is a custom integration for [Home Assistant](https://www.home-assistant.io/) that reads presence information from Microsoft Graph. It discovers enabled internal users in your Microsoft 365 tenant and creates one sensor for each monitored account.
+**Microsoft Teams Presence** is a custom integration for [Home Assistant](https://www.home-assistant.io/) that reads presence information from Microsoft Graph. It discovers users returned by Microsoft Graph in your Microsoft 365 tenant and creates one sensor for each monitored account.
 
 It is designed for personal dashboards, office presence panels and automations. It is not an official Microsoft or Home Assistant integration.
 
@@ -32,7 +32,7 @@ It is designed for personal dashboards, office presence panels and automations. 
 | Microsoft Entra ID | Secure app-only authentication using the OAuth 2.0 client credentials flow |
 | Automatic discovery | Finds users in your tenant through Microsoft Graph |
 | Presence sensors | Creates one sensor for every monitored user |
-| Automatic filtering | Skips guest/B2B users and disabled accounts |
+| User exclusions | Excludes accounts selected manually in the integration options |
 | User exclusions | Select additional accounts to exclude in the integration options |
 | Periodic refresh | Refreshes presence data periodically (default: 60 seconds) |
 | UI configuration | Configure credentials and exclusions from Home Assistant; no YAML editing required |
@@ -51,7 +51,7 @@ The app registration requires these **Application** permissions:
 
 | Permission | Purpose |
 |---|---|
-| `User.Read.All` | Discover users and read account properties used for filtering |
+| `User.Read.All` | Discover users in the Microsoft 365 tenant |
 | `Presence.Read.All` | Read Teams presence for users in the tenant |
 
 Grant **admin consent** after adding both permissions. The integration requests an app-only access token using `https://graph.microsoft.com/.default`.
@@ -103,11 +103,7 @@ You can also use the [My Home Assistant HACS repository link](https://my.home-as
 
 The integration is configured entirely through the Home Assistant UI. After setup, open the integration's **Configure** page to manage excluded users.
 
-The current discovery filter is:
-
-- `userType` must be `Member` (guest/B2B accounts are skipped).
-- `accountEnabled` must be `true` (disabled accounts are skipped).
-- Accounts manually selected in **Excluded users** are skipped.
+The integration monitors the users returned by the Microsoft Graph `/users` endpoint. It does not automatically filter guest, disabled or other account types. To omit an account, select it manually in **Excluded users** in the integration options.
 
 **Shared mailboxes:** Microsoft Graph does not provide a universally reliable mailbox-type indicator in the fields currently used by this integration. Exclude shared mailboxes manually in the integration options.
 
@@ -134,9 +130,9 @@ Additional attributes include the display name, email/UPN, Graph availability, a
 | Setup reports it cannot connect | Verify tenant ID, client ID and the client-secret **value**; check that the secret has not expired |
 | HTTP 401 | Recreate or renew the client secret and verify the tenant and application IDs |
 | HTTP 403 | Confirm both Graph **Application** permissions and tenant-wide admin consent |
-| No users are discovered | Check that the app can read users and that the tenant contains enabled `Member` accounts |
+| No users are discovered | Check that the app can read users with `User.Read.All`, then check the `teams_presence` diagnostics in Home Assistant logs |
 | Shared mailbox appears | Add it to **Excluded users** manually |
-| Presence is `unknown` | Check Graph permission, user presence availability and Home Assistant logs |
+| Presence is `unknown` | The user sensor is still created if the presence endpoint fails; check `Presence.Read.All`, admin consent and the `teams_presence` warning/error in Home Assistant logs |
 | Exclusion changes do not appear immediately | The integration reloads after its options are saved; allow the reload to finish |
 
 For diagnostics, open **Settings → System → Logs** and look for `teams_presence`. Before sharing logs in a public issue, redact tenant IDs, user IDs, UPNs, email addresses, tokens and other identifying information.

@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import logging
+
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_CLIENT_ID
 from homeassistant.core import callback
 
 from .const import DOMAIN, CONF_TENANT_ID, CONF_CLIENT_SECRET
+
+_LOGGER = logging.getLogger(__name__)
 
 STEP_USER_DATA_SCHEMA = vol.Schema({
     vol.Required(CONF_TENANT_ID): str,
@@ -21,6 +25,7 @@ class TeamsPresenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
         if user_input is not None:
             from .coordinator import GraphClient
+
             try:
                 client = GraphClient(
                     self.hass,
@@ -30,6 +35,11 @@ class TeamsPresenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
                 await client.async_get_users()
             except Exception:
+                # The exception contains the Microsoft error code/message, but never
+                # log the supplied client secret or token.
+                _LOGGER.exception(
+                    "Microsoft Teams Presence could not validate the Graph connection"
+                )
                 errors["base"] = "cannot_connect"
             else:
                 await self.async_set_unique_id(
@@ -51,8 +61,7 @@ class TeamsPresenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry):
-        # Current Home Assistant injects the config entry into OptionsFlow.
-        # Do not pass it to __init__ or assign self.config_entry manually.
+        # Home Assistant Core 2025.12+ injects config_entry into OptionsFlow.
         return TeamsPresenceOptionsFlow()
 
 
@@ -71,47 +80,55 @@ class TeamsPresenceOptionsFlow(config_entries.OptionsFlow):
         try:
             users = await client.async_get_users()
         except Exception:
+            _LOGGER.exception(
+                "Unable to retrieve users from Microsoft Graph for the exclusion selector"
+            )
             users = []
 
-        users = sorted(users, key=lambda u: (u.get("displayName") or "").lower())
+        users = sorted(users, key=lambda user: (user.get("displayName") or "").lower())
+        # Show the same population returned by /users. Do not apply additional
+        # userType/accountEnabled filters to this selector.
         options = {
-            u["id"]: f'{u.get("displayName") or u.get("userPrincipalName")} — {u.get("userPrincipalName", "")}'
-            for u in users
-            if (
-                u.get("id")
-                and u.get("userType", "Member") == "Member"
-                and u.get("accountEnabled", True) is True
+            user["id"]: (
+                f'{user.get("displayName") or user.get("userPrincipalName")} — '
+                f'{user.get("userPrincipalName", "")}'
             )
+            for user in users
+            if user.get("id")
         }
 
         current = entry.options.get("excluded_users", [])
-
         schema = vol.Schema({
             vol.Optional(
                 "excluded_users",
-                default=[x for x in current if x in options],
+                default=[user_id for user_id in current if user_id in options],
             ): vol.All(vol.Coerce(list), vol.Length(max=len(options)))
         })
 
-        # Replace the generic list coercion with a multi-select selector when available.
         try:
-            from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
+            from homeassistant.helpers.selector import (
+                SelectSelector,
+                SelectSelectorConfig,
+            )
+
             schema = vol.Schema({
                 vol.Optional(
                     "excluded_users",
-                    default=[x for x in current if x in options],
+                    default=[user_id for user_id in current if user_id in options],
                 ): SelectSelector(
                     SelectSelectorConfig(
                         options=[
-                            {"value": uid, "label": label}
-                            for uid, label in options.items()
+                            {"value": user_id, "label": label}
+                            for user_id, label in options.items()
                         ],
                         multiple=True,
                         mode="list",
                     )
                 )
             })
-        except Exception:
+        except (ImportError, TypeError):
+            # Keep the voluptuous fallback for Home Assistant versions without
+            # this selector configuration.
             pass
 
         if user_input is not None:

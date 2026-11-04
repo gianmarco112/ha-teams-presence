@@ -12,7 +12,7 @@
       }
     },
     "error": {
-      "cannot_connect": "Impossibile autenticarsi o interrogare Microsoft Graph."
+      "cannot_connect": "Impossibile autenticarsi o interrogare Microsoft Graph. Controlla i registri di Home Assistant per i dettagli."
     },
     "abort": {
       "already_configured": "Questa applicazione è già configurata."
