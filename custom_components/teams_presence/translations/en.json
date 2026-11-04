@@ -1,0 +1,32 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Microsoft Teams Presence",
+        "description": "Enter the Microsoft Entra ID application credentials.",
+        "data": {
+          "tenant_id": "Tenant ID",
+          "client_id": "Client ID",
+          "client_secret": "Client Secret"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not authenticate or query Microsoft Graph."
+    },
+    "abort": {
+      "already_configured": "This application is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Excluded users",
+        "description": "Select users whose Teams presence should not be monitored.",
+        "data": {
+          "excluded_users": "Excluded users"
+        }
+      }
+    }
+  }
+}
