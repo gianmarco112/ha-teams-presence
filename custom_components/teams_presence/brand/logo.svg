@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 180" role="img" aria-labelledby="title desc">
+  <title id="title">Microsoft Teams Presence</title>
+  <desc id="desc">A purple and blue presence icon with a green online status indicator.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3857d6"/>
+      <stop offset="1" stop-color="#8246d8"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="172" height="172" rx="42" fill="url(#bg)"/>
+  <circle cx="79" cy="62" r="25" fill="#fff"/>
+  <rect x="42" y="91" width="74" height="47" rx="22" fill="#fff"/>
+  <circle cx="137" cy="133" r="27" fill="#fff"/>
+  <circle cx="137" cy="133" r="21" fill="#20bf86"/>
+  <path d="M126 133l8 8 15-18" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="204" y="83" fill="#25304c" font-family="Arial,sans-serif" font-size="42" font-weight="700" letter-spacing="1">TEAMS PRESENCE</text>
+  <text x="207" y="125" fill="#68738e" font-family="Arial,sans-serif" font-size="17" letter-spacing="2">MICROSOFT GRAPH · HOME ASSISTANT</text>
+</svg>
