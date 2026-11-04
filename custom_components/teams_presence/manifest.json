@@ -11,8 +11,8 @@
   "config_flow": true,
   "documentation": "https://github.com/gianmarco112/ha-teams-presence",
   "integration_type": "service",
-  "issue_tracker": "https://github.com/gianmarco112/ha-teams-presence/issues",
   "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/gianmarco112/ha-teams-presence/issues",
   "requirements": [],
   "single_config_entry": true,
   "version": "0.2.1"
