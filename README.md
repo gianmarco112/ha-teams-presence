@@ -32,8 +32,7 @@ It is designed for personal dashboards, office presence panels and automations. 
 | Microsoft Entra ID | Secure app-only authentication using the OAuth 2.0 client credentials flow |
 | Automatic discovery | Finds users in your tenant through Microsoft Graph |
 | Presence sensors | Creates one sensor for every monitored user |
-| User exclusions | Excludes accounts selected manually in the integration options |
-| User exclusions | Select additional accounts to exclude in the integration options |
+| User exclusions | Select accounts to exclude manually in the integration options |
 | Periodic refresh | Refreshes presence data periodically (default: 60 seconds) |
 | UI configuration | Configure credentials and exclusions from Home Assistant; no YAML editing required |
 | Localization | English and Italian translations |
