@@ -1,0 +1,14 @@
+{
+  "domain": "teams_presence",
+  "name": "Microsoft Teams Presence",
+  "codeowners": [
+    "@gianmarco112"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/gianmarco112/ha-teams-presence",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/gianmarco112/ha-teams-presence/issues",
+  "requirements": [],
+  "single_config_entry": true,
+  "version": "0.2.1"
+}
