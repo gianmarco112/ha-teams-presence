@@ -2,7 +2,7 @@
 
 # Microsoft Teams Presence
 
-![Microsoft Teams Presence](custom_components/teams_presence/brand/icon.png)
+![Microsoft Teams Presence](custom_components/teams_presence/brand/logo.svg)
 
 ### Bring Microsoft Teams presence into Home Assistant.
 
